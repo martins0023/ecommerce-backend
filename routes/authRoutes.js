@@ -1,8 +1,13 @@
 const express = require("express");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const { updateUserProfile } = require("../controllers/profileController");
+//const { protect } = require("../middleware/authMiddleware");
 
 const router = express.Router();
+
+//update profile
+router.put("/profile", updateUserProfile);
 
 // Register a new user
 router.post("/signup", async (req, res) => {

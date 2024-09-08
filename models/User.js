@@ -16,6 +16,17 @@ const UserSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  profileImage: {
+    type: String, // URL or Base64 string of the image
+    default: "", // Start with an empty string by default
+  },
+  gender: {
+    type: String,
+    enum: ["Male", "Female"], // Only allow 'Male' or 'Female'
+  },
+  dateOfBirth: {
+    type: Date, // Store the date of birth
+  },
 });
 
 // Hash password before saving
