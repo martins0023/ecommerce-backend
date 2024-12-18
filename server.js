@@ -3,6 +3,8 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const dotenv = require("dotenv");
 const authRoutes = require("./routes/authRoutes");
+const stripe = require('stripe')(process.env.STRIPE_PUBLIC_SECRET_KEY);
+//const paymentsRoutes = require("./routes/paymentsRoutes");
 
 dotenv.config();
 
@@ -17,6 +19,9 @@ app.use("/api/auth", authRoutes);
 app.get("/", (req, res) => {
   res.send("API is running...");
 });
+
+// Routes
+//app.use("/api/payments", paymentsRoutes);
 
 mongoose
   .connect(process.env.MONGO_URI, {

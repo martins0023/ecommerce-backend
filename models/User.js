@@ -27,6 +27,14 @@ const UserSchema = new mongoose.Schema({
   dateOfBirth: {
     type: Date, // Store the date of birth
   },
+  address: {
+    type: String,
+    default: "", // Start with an empty string by default
+  },
+  phonenumber: {
+    type: String,
+    default: "", // Start with an empty string by default
+  },
 });
 
 // Hash password before saving

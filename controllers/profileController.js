@@ -26,8 +26,9 @@ exports.getUserProfile = async (req, res) => {
       Email: user.Email,
       profileImage: user.profileImage,
       gender: user.gender,
-      birthday: user.birthday,
+      birthday: user.dateOfBirth,
       address: user.address, // if the address is available
+      phonenumber: user.phonenumber,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -36,19 +37,37 @@ exports.getUserProfile = async (req, res) => {
 
 // Update User Profile (PUT /profile)
 exports.updateUserProfile = async (req, res) => {
-  const { Username, Email, profileImage, gender, birthday } = req.body;
+  const { Username, Email, profileImage, gender, birthday, phonenumber } = req.body;
 
   try {
     const user = await User.findById(req.user._id);
 
-    if (user) {
-      user.Username = Username || user.Username;
-      user.Email = Email || user.Email;
-      user.profileImage = profileImage || user.profileImage;
-      user.gender = gender || user.gender;
-      user.birthday = birthday || user.birthday;
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
+    console.log("Updating user fields...");
+    user.Username = Username || user.Username;
+    user.Email = Email || user.Email;
+    user.profileImage = profileImage || user.profileImage;
+
+    if (gender) {
+      const formattedGender = gender.charAt(0).toUpperCase() + gender.slice(1).toLowerCase();
+      if (!["Male", "Female"].includes(formattedGender)) {
+        return res.status(400).json({ message: "Invalid gender value" });
+      }
+      user.gender = formattedGender;
+    }
+
+    if (birthday) {
+      user.dateOfBirth = new Date(birthday); // Ensure proper Date format
+    }
+
+    user.phonenumber = phonenumber || user.phonenumber;
+
+    try {
       const updatedUser = await user.save();
+      console.log("User updated successfully:", updatedUser);
 
       res.json({
         _id: updatedUser._id,
@@ -56,13 +75,22 @@ exports.updateUserProfile = async (req, res) => {
         Email: updatedUser.Email,
         profileImage: updatedUser.profileImage,
         gender: updatedUser.gender,
-        birthday: updatedUser.birthday,
-        token: generateToken(updatedUser._id), // Using JWT for token generation
+        dateOfBirth: updatedUser.dateOfBirth,
+        address: updatedUser.address, // Include address in response
+        phonenumber: updatedUser.phonenumber,
+        token: generateToken(updatedUser._id),
       });
-    } else {
-      res.status(404).json({ message: "User not found" });
+    } catch (error) {
+      console.error("Error during save:", error);
+      if (error.code === 11000) { // Duplicate key error
+        return res.status(400).json({
+          message: `Duplicate key error: ${Object.keys(error.keyValue).join(", ")}`,
+        });
+      }
+      throw error; // Rethrow for generic error handling
     }
   } catch (error) {
+    console.error("Error updating user:", error);
     res.status(500).json({ message: error.message });
   }
 };
