@@ -1,6 +1,7 @@
 const express = require("express");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const Card = require("../models/Card"); // Import your Card model
 const { updateUserProfile, getUserProfile, updateAddress } = require("../controllers/profileController");
 // const { protect } = require("../middleware/authMiddleware");
 const Stripe = require("stripe");
@@ -49,6 +50,18 @@ router.post("/signup", async (req, res) => {
     res.status(500).json({
       message: "An error occurred during sign up, please try again later.",
     });
+  }
+});
+
+//  Logout user
+router.post("/logout", (req, res) => {
+  try {
+    // Clear the client's token or session cookie
+    res.clearCookie("authToken"); // Replace with your token cookie name
+    return res.json({ success: true, message: "Logged out successfully." });
+  } catch (error) {
+    console.error("Logout Error:", error);
+    return res.status(500).json({ success: false, message: "An error occurred." });
   }
 });
 
@@ -131,27 +144,129 @@ router.post("/create-checkout-session", async (req, res) => {
 });
 
 router.post("/store-card", async (req, res) => {
-  const { cardNumber, cardholderName, expiryDate, cvv } = req.body;
+  const { cardNumber, cardholderName, expiryDate, cvv, userId } = req.body;
 
   try {
-    // Simulating Stripe 3D Secure Integration
+    // Validate Input
+    if (!cardNumber || !cardholderName || !expiryDate || !cvv || !userId) {
+      return res.status(400).json({ success: false, error: "All fields are required." });
+    }
+
+    // Parse expiryDate
+    const [expMonth, expYear] = expiryDate.split("/");
+    if (!expMonth || !expYear || isNaN(expMonth) || isNaN(expYear)) {
+      return res.status(400).json({ success: false, error: "Invalid expiry date format." });
+    }
+
+    // Create a Payment Method
     const paymentMethod = await stripe.paymentMethods.create({
       type: "card",
       card: {
         number: cardNumber,
-        exp_month: expiryDate.split("/")[0],
-        exp_year: expiryDate.split("/")[1],
+        exp_month: parseInt(expMonth),
+        exp_year: parseInt(expYear),
         cvc: cvv,
       },
     });
 
-    // Return a client-side redirect URL for 3D Secure verification
-    res.json({
-      success: true,
-      redirectUrl: `https://3d-secure-example.com/verify?method=${paymentMethod.id}`,
+    // Save Card Details in Database
+    const newCard = new Card({
+      userId,
+      cardholderName,
+      stripePaymentMethodId: paymentMethod.id,
     });
+
+    await newCard.save();
+
+    // Respond with Success
+    res.json({ success: true, message: "Card saved successfully." });
   } catch (error) {
-    console.error("Stripe Error:", error);
+    console.error("Error Storing Card:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// router.post("/store-card", async (req, res) => {
+//   const { cardNumber, cardholderName, expiryDate, cvv, userId } = req.body;
+
+//   try {
+//     // Validate Input
+//     if (!cardNumber || !cardholderName || !expiryDate || !cvv || !userId) {
+//       return res.status(400).json({ success: false, error: "All fields are required." });
+//     }
+
+//     // Split expiryDate and validate format
+//     const [expMonth, expYear] = expiryDate.split("/");
+//     if (!expMonth || !expYear || isNaN(expMonth) || isNaN(expYear)) {
+//       return res.status(400).json({ success: false, error: "Invalid expiry date format." });
+//     }
+
+//     // Create a Payment Method
+//     const paymentMethod = await stripe.paymentMethods.create({
+//       type: "card",
+//       card: {
+//         number: cardNumber,
+//         exp_month: parseInt(expMonth),
+//         exp_year: parseInt(expYear),
+//         cvc: cvv,
+//       },
+//     });
+
+//     // Attach the Payment Method to the User's Customer in Stripe
+//     const customer = await stripe.customers.create({
+//       name: cardholderName,
+//     });
+
+//     await stripe.paymentMethods.attach(paymentMethod.id, {
+//       customer: customer.id,
+//     });
+
+//     // Create a Setup Intent for 3D Secure Authentication
+//     const setupIntent = await stripe.setupIntents.create({
+//       customer: customer.id,
+//       payment_method: paymentMethod.id,
+//       confirm: true,
+//       return_url: "http://localhost:5173/settings", // Redirect after verification
+//     });
+
+//     if (setupIntent.status === "requires_action") {
+//       // Return the 3D Secure URL to the frontend
+//       return res.json({
+//         success: true,
+//         redirectUrl: setupIntent.next_action.redirect_to_url.url,
+//       });
+//     }
+
+//     // Save Card Details in Database
+//     const newCard = new Card({
+//       userId,
+//       cardholderName,
+//       stripePaymentMethodId: paymentMethod.id,
+//     });
+
+//     await newCard.save();
+
+//     // Respond with Success
+//     res.json({ success: true, message: "Card saved successfully." });
+//   } catch (error) {
+//     console.error("Stripe Error:", error);
+//     res.status(500).json({ success: false, error: error.message });
+//   }
+// });
+
+
+router.get("/get-cards/:userId", async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    if (!userId) {
+      return res.status(400).json({ success: false, error: "User ID is required." });
+    }
+
+    const cards = await Card.find({ userId });
+    res.json({ success: true, cards });
+  } catch (error) {
+    console.error("Error Fetching Cards:", error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
